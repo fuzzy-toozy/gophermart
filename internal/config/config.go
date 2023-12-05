@@ -16,6 +16,7 @@ type Config struct {
 	AccrualAddress    string
 	LogFile           string
 	LogLevel          string
+	LogPrefix         string
 	SecretKey         []byte
 	TokenLifetime     time.Duration
 	DatabaseConfig    database.DBConfig
@@ -36,6 +37,7 @@ func BuildConfig() (*Config, error) {
 
 	c.LogFile = "./gophermart.log"
 	c.LogLevel = DevLogLevel
+	c.LogPrefix = "[APP]"
 	c.ReadTimeout = 10 * time.Second
 	c.WriteTimeout = 10 * time.Second
 	c.IdleTimeout = 10 * time.Second

@@ -90,6 +90,11 @@ func (s *ProcessingService) ProcessOrders(ctx context.Context) serviceErrs.Servi
 		return serviceErrs.NewServiceError(http.StatusInternalServerError, "%w", err)
 	}
 
+	if len(orders) > 0 {
+		s.logger.Debugf("Started processing orders")
+	}
+
+	ordersProcessed := 0
 	for _, order := range orders {
 		s.logger.Debugf("Received uprocessed order '%v' from user '%v' with status '%v'",
 			order.Number, order.Username, order.Status)
@@ -102,13 +107,19 @@ func (s *ProcessingService) ProcessOrders(ctx context.Context) serviceErrs.Servi
 
 				continue
 			}
+			ordersProcessed++
 		case models.OrderPROCESSING:
 			if err := s.processAccural(ctx, &order); err != nil {
 				s.logger.Errorf("Failed to process accural order: %v", err)
 
 				continue
 			}
+			ordersProcessed++
 		}
+	}
+
+	if ordersProcessed > 0 {
+		s.logger.Debugf("Processed %v orders", ordersProcessed)
 	}
 
 	return nil

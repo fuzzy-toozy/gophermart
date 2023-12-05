@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -10,10 +11,10 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const (
-	LogLevelDebug   = "debug"
-	LogLevelRelease = "release"
-)
+type AppLogger struct {
+	Logger  *zap.SugaredLogger
+	LogFile *os.File
+}
 
 func LogTimeFormat(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 	encodeTimeLayout(t, "2006/01/02 - 15:04:05", enc)
@@ -53,22 +54,35 @@ func (w *PrefixWriter) Write(p []byte) (n int, err error) {
 	return w.writer.Write(w.wrBuffer.Bytes())
 }
 
-func LogInit(d bool, prefix string, f *os.File) *zap.SugaredLogger {
-	pe := zap.NewProductionEncoderConfig()
+func getLogFile(fileName string) (*os.File, error) {
+	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create log file '%v': %w", fileName, err)
+	}
 
-	// Create our custom writers
-	fileWriter := NewPrefixWriter(prefix, f)
-	consoleWriter := NewPrefixWriter(prefix, os.Stdout)
+	return f, nil
+}
+
+func LogInit(logLevel string, prefix string, fileName string) (AppLogger, error) {
+	pe := zap.NewProductionEncoderConfig()
 
 	pe.EncodeTime = LogTimeFormat
 	pe.EncodeLevel = zapcore.CapitalColorLevelEncoder
 
 	encoder := zapcore.NewConsoleEncoder(pe)
 
-	level := zap.InfoLevel
-	if d {
-		level = zap.DebugLevel
+	level, err := zapcore.ParseLevel(logLevel)
+	if err != nil {
+		return AppLogger{}, err
 	}
+
+	logFile, err := getLogFile(fileName)
+	if err != nil {
+		return AppLogger{}, err
+	}
+
+	fileWriter := NewPrefixWriter(prefix, logFile)
+	consoleWriter := NewPrefixWriter(prefix, os.Stdout)
 
 	core := zapcore.NewTee(
 		// Add custom writers to zapcore
@@ -78,5 +92,10 @@ func LogInit(d bool, prefix string, f *os.File) *zap.SugaredLogger {
 
 	l := zap.New(core)
 
-	return l.Sugar()
+	a := AppLogger{
+		LogFile: logFile,
+		Logger:  l.Sugar(),
+	}
+
+	return a, nil
 }

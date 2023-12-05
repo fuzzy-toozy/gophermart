@@ -4,6 +4,10 @@ import (
 	"errors"
 
 	"github.com/golang-migrate/migrate"
+
+	_ "github.com/golang-migrate/migrate/database/postgres"
+	_ "github.com/golang-migrate/migrate/source/file"
+	_ "github.com/lib/pq"
 )
 
 func Migrate(dbURL string) error {

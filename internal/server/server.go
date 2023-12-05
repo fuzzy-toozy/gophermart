@@ -43,7 +43,6 @@ func (s *Server) runProcessor(ctx context.Context) {
 	for {
 		select {
 		case <-t.C:
-			s.logger.Debugf("Started processing orders")
 			err := s.processService.ProcessOrders(ctx)
 			if err != nil {
 				s.logger.Errorf("Failed to process orders: %v", err)
@@ -121,26 +120,13 @@ func (s *Server) setupRouting() {
 	}
 }
 
-func NewServer() (*Server, error) {
-	c, err := config.BuildConfig()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build config: %w", err)
-	}
-
-	f, err := os.OpenFile(c.LogFile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create log file '%v': %w", c.LogFile, err)
-	}
-
-	debugLog := strings.ToLower(c.LogLevel) == LogLevelDebug
-	logger := LogInit(debugLog, "[APP]", f)
-
-	err = database.Migrate(c.DatabaseConfig.ConnURI)
+func NewServer(c *config.Config, l AppLogger) (*Server, error) {
+	err := database.Migrate(c.DatabaseConfig.ConnURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed db migration: %v", err)
 	}
 
-	gin.DefaultWriter = io.MultiWriter(f, os.Stdout)
+	gin.DefaultWriter = io.MultiWriter(l.LogFile, os.Stdout)
 
 	serviceStorage, err := database.NewServiceStorage(c.DatabaseConfig)
 	if err != nil {
@@ -149,26 +135,26 @@ func NewServer() (*Server, error) {
 
 	userRepo := repo.NewUserServiceRepo(*serviceStorage)
 	userService := services.NewUserService(userRepo, services.NewTokenService(c.SecretKey, c.TokenLifetime))
-	userController := controllers.NewUserController(userService, logger)
+	userController := controllers.NewUserController(userService, l.Logger)
 
 	orderRepo := repo.NewOrderServiceRepo(serviceStorage)
 	orderService := services.NewOrderService(orderRepo)
-	orderController := controllers.NewOrderController(orderService, logger)
+	orderController := controllers.NewOrderController(orderService, l.Logger)
 
 	balanceRepo := repo.NewBalanceServiceRepo(serviceStorage)
 	balanceService := services.NewBalanceService(balanceRepo)
-	balanceController := controllers.NewBalanceController(balanceService, logger)
+	balanceController := controllers.NewBalanceController(balanceService, l.Logger)
 
 	processRepo := repo.NewProcessRepo(serviceStorage, balanceRepo, orderRepo)
-	accrualService := services.NewAccrualService(&http.Client{}, c.AccrualAddress, logger)
-	processService := services.NewProcessingService(processRepo, accrualService, logger)
-	procesController := controllers.NewProcessController(processService, logger)
+	accrualService := services.NewAccrualService(&http.Client{}, c.AccrualAddress, l.Logger)
+	processService := services.NewProcessingService(processRepo, accrualService, l.Logger)
+	procesController := controllers.NewProcessController(processService, l.Logger)
 
 	c.ServerAddress = strings.TrimPrefix(c.ServerAddress, "http://")
 
 	s := Server{
 		config:            c,
-		logger:            logger,
+		logger:            l.Logger,
 		serviceStorage:    serviceStorage,
 		userConroller:     userController,
 		ordersController:  orderController,

@@ -49,19 +49,11 @@ func newBalanceRecord(username string, ordNumber string, income, outcome float64
 
 func newIncomeRecord(username string, ordNumber string, income float64) *balanceRecord {
 	record := newBalanceRecord(username, ordNumber, income, 0)
-	if record.outcome != 0 {
-		panic("balance outcome can't be not 0 for income record")
-	}
-
 	return record
 }
 
 func newOutcomeRecord(username string, ordNumber string, outcome float64) *balanceRecord {
 	record := newBalanceRecord(username, ordNumber, 0, outcome)
-	if record.income != 0 {
-		panic("balance income can't be not 0 for outcome record")
-	}
-
 	return record
 }
 
@@ -81,11 +73,21 @@ func getBalanceQueries() balanceQueryConfig {
 
 func (r *balanceServiceRepo) AddIncomeRecord(ctx context.Context, username string, orderNumber string, income float64) error {
 	balance := newIncomeRecord(username, orderNumber, income)
+
+	if balance.outcome != 0 {
+		return fmt.Errorf("income balance record can't have non zero outcome: %v", balance.outcome)
+	}
+
 	return r.addBalanceRecord(ctx, balance)
 }
 
 func (r *balanceServiceRepo) AddWithdrawRecord(ctx context.Context, username string, orderNumber string, outcome float64) error {
 	balance := newOutcomeRecord(username, orderNumber, outcome)
+
+	if balance.income != 0 {
+		return fmt.Errorf("outcome balance record can't have non zero income: %v", balance.outcome)
+	}
+
 	return r.addBalanceRecord(ctx, balance)
 }
 
